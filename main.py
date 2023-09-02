@@ -1,13 +1,12 @@
-import os
-import subprocess
 import logging
+import os
 import time
-import threading
-import streamlit as st
+import subprocess  # Add subprocess import for running the yt-dlp command
+import shutil  # Add shutil import for removing the temporary folder
+os.system(f'spotdl --download-ffmpeg')
 from dotenv import dotenv_values
 from telegram import Update
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
-os.system(f'spotdl --download-ffmpeg')
 
 # Update yt-dlp
 try:
@@ -16,11 +15,8 @@ try:
 except subprocess.CalledProcessError as e:
     logging.error(f'Failed to update yt-dlp: {e}')
 
-# Initialize the Streamlit app
-st.title("Streamlit App")
-st.write("Your Streamlit app content here")
+# Rest of your code remains the same
 
-# Initialize the Telegram bot
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -89,6 +85,9 @@ def get_single_song(update: Update, context: CallbackContext):
                 except Exception as e:
                     logger.error(f"Error sending audio: {e}")
             logger.info(f'Sent {sent} audio file(s) to user.')
+
+            # Remove the temporary folder and its contents
+            shutil.rmtree(download_dir)
         else:
             context.bot.send_message(chat_id=chat_id, text="❌ Unable to find the requested song.")
             logger.warning('No audio file found after download.')
@@ -97,22 +96,22 @@ def get_single_song(update: Update, context: CallbackContext):
         logger.warning('Invalid URL provided.')
 
     os.chdir('..')
-    os.system(f'rm -rf {download_dir}')
 
-# Create and start the Telegram bot in a separate thread
-def run_telegram_bot():
+def main():
     updater = Updater(token=config.token, use_context=True)
     dispatcher = updater.dispatcher
 
+    # Handlers
     start_handler = CommandHandler('start', start)
     dispatcher.add_handler(start_handler)
 
     song_handler = MessageHandler(Filters.text & (~Filters.command), get_single_song)
     dispatcher.add_handler(song_handler)
 
-    updater.start_polling()
+    # Start the bot
+    updater.start_polling(poll_interval=0.3)
+    logger.info('Bot started')
     updater.idle()
 
-telegram_bot_thread = threading.Thread(target=run_telegram_bot)
-telegram_bot_thread.daemon = True  # This ensures the thread is terminated when the main script exits
-telegram_bot_thread.start()
+if __name__ == "__main__":
+    main()
