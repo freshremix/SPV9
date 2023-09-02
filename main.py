@@ -1,9 +1,9 @@
 import logging
 import os
 import time
-os.system(f'spotdl --download-ffmpeg')
 import subprocess  # Add subprocess import for running the yt-dlp command
-from dotenv import dotenv_values
+os.system(f'spotdl --download-ffmpeg')
+import dotenv
 from telegram import Update
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
 
@@ -14,6 +14,8 @@ try:
 except subprocess.CalledProcessError as e:
     logging.error(f'Failed to update yt-dlp: {e}')
 
+# Rest of your code remains the same
+
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -23,7 +25,7 @@ class Config:
 
     def load_config(self):
         try:
-            token = dotenv_values(".env")["TELEGRAM_TOKEN"]
+            token = dotenv.dotenv_values(".env")["TELEGRAM_TOKEN"]
         except Exception as e:
             logger.error(f"Failed to load token from .env file: {e}")
             token = os.environ.get('TELEGRAM_TOKEN')
@@ -78,7 +80,7 @@ def get_single_song(update: Update, context: CallbackContext):
                     with open(file, 'rb') as audio_file:
                         context.bot.send_audio(chat_id=chat_id, audio=audio_file, timeout=18000)
                     sent += 1
-                    time.sleep(0.3)  # Add a delay of 0.3 second between sending each audio file
+                    time.sleep(0.3)  # Add a delay of 0.3 seconds between sending each audio file
                 except Exception as e:
                     logger.error(f"Error sending audio: {e}")
             logger.info(f'Sent {sent} audio file(s) to user.')
@@ -106,7 +108,10 @@ def main():
     # Start the bot
     updater.start_polling(poll_interval=0.3)
     logger.info('Bot started')
-    updater.idle()
+    
+    # Use the if __name__ == "__main__": block to prevent issues with the signal module
+    if __name__ == "__main__":
+        updater.idle()
 
 if __name__ == "__main__":
     main()
