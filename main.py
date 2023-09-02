@@ -1,101 +1,112 @@
-import spotipy
-from spotipy.oauth2 import SpotifyClientCredentials
-from pytube import YouTube, Search
+import logging
 import os
 import time
-import concurrent.futures
-from dotenv import load_dotenv
+os.system(f'spotdl --download-ffmpeg')
+import subprocess  # Add subprocess import for running the yt-dlp command
+from dotenv import dotenv_values
+from telegram import Update
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
 
-load_dotenv()
+# Update yt-dlp
+try:
+    subprocess.run(["yt-dlp", "-U"], check=True)
+    logging.info('yt-dlp updated successfully.')
+except subprocess.CalledProcessError as e:
+    logging.error(f'Failed to update yt-dlp: {e}')
 
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-def download_song(song_info):
-    video_id = song_info["video_id"]
-    playlist_name = song_info["playlist_name"]
-    song_name = song_info["song_name"]
+class Config:
+    def __init__(self):
+        self.load_config()
 
-    try:
-        yt = YouTube(f'https://www.youtube.com/watch?v={video_id}')
+    def load_config(self):
         try:
-            audio = yt.streams.get_audio_only()
-            try:
-                download_file = audio.download(output_path=playlist_name)
-                file_name, ext = os.path.splitext(download_file)
-                new_file = file_name + ".mp3"
-                os.rename(download_file, new_file)
-            except Exception as download_error:
-                print(f"Error in download for '{song_name}': {download_error}")
-        except Exception as audio_error:
-            print(f"Error in audio stream for '{song_name}': {audio_error}")
-    except Exception as youtube_error:
-        print(f"Error in YouTube video ID for '{song_name}': {youtube_error}")
+            token = dotenv_values(".env")["TELEGRAM_TOKEN"]
+        except Exception as e:
+            logger.error(f"Failed to load token from .env file: {e}")
+            token = os.environ.get('TELEGRAM_TOKEN')
+            if token is None:
+                logger.error("Telegram token not found. Make sure to set TELEGRAM_TOKEN environment variable.")
+                raise ValueError("Telegram token not found.")
+        self.token = token
+        self.auth_enabled = False  # Change to True if authentication is required
+        self.auth_password = "your_password"  # Set the desired authentication password
+        self.auth_users = []  # List of authorized user chat IDs
 
+config = Config()
 
-def search_song(song_name, artist, playlist_name):
-    try:
-        search_results = Search(f"{song_name} {artist}")
-        if search_results:
-            video_id_result = search_results.results[0].video_id
-            return {
-                "video_id": video_id_result,
-                "playlist_name": playlist_name,
-                "song_name": song_name
-            }
+def authenticate(func):
+    def wrapper(update: Update, context: CallbackContext):
+        chat_id = update.effective_chat.id
+        if config.auth_enabled:
+            if chat_id not in config.auth_users:
+                context.bot.send_message(chat_id=chat_id, text="⚠️ The password was incorrect")
+                return
+        return func(update, context)
+    return wrapper
+
+def start(update: Update, context: CallbackContext):
+    chat_id = update.effective_chat.id
+    context.bot.send_message(chat_id=chat_id, text="🎵 Welcome to the Song Downloader Bot! 🎵")
+
+def get_single_song(update: Update, context: CallbackContext):
+    chat_id = update.effective_chat.id
+    message_id = update.effective_message.message_id
+    username = update.effective_chat.username
+    logger.info(f'Starting song download. Chat ID: {chat_id}, Message ID: {message_id}, Username: {username}')
+
+    url = update.effective_message.text.strip()
+
+    download_dir = f".temp{message_id}{chat_id}"
+    os.makedirs(download_dir, exist_ok=True)
+    os.chdir(download_dir)
+
+    logger.info('Downloading song...')
+    context.bot.send_message(chat_id=chat_id, text="🔍 Downloading")
+
+    if url.startswith(("http://", "https://")):
+        os.system(f'spotdl download "{url}" --threads 12 --format mp3 --bitrate 320k --lyrics genius')
+
+        logger.info('Sending song to user...')
+        sent = 0
+        files = [file for file in os.listdir(".") if file.endswith(".mp3")]
+        if files:
+            for file in files:
+                try:
+                    with open(file, 'rb') as audio_file:
+                        context.bot.send_audio(chat_id=chat_id, audio=audio_file, timeout=18000)
+                    sent += 1
+                    time.sleep(0.3)  # Add a delay of 0.3 second between sending each audio file
+                except Exception as e:
+                    logger.error(f"Error sending audio: {e}")
+            logger.info(f'Sent {sent} audio file(s) to user.')
         else:
-            print(f"No search results found for '{song_name}'")
-            return None
-    except Exception as search_error:
-        print(f"Error in search for '{song_name}': {search_error}")
-        return None
+            context.bot.send_message(chat_id=chat_id, text="❌ Unable to find the requested song.")
+            logger.warning('No audio file found after download.')
+    else:
+        context.bot.send_message(chat_id=chat_id, text="❌ Invalid URL. Please provide a valid song URL.")
+        logger.warning('Invalid URL provided.')
 
+    os.chdir('..')
+    os.system(f'rm -rf {download_dir}')
 
-def search_and_download(song_info):
-    song_name = song_info["song_name"]
-    artist = song_info["artist"]
-    playlist_name = song_info["playlist_name"]
+def main():
+    updater = Updater(token=config.token, use_context=True)
+    dispatcher = updater.dispatcher
 
-    video_id = search_song(song_name, artist, playlist_name)
-    if video_id:
-        download_song(video_id)
+    # Handlers
+    start_handler = CommandHandler('start', start)
+    dispatcher.add_handler(start_handler)
 
+    song_handler = MessageHandler(Filters.text & (~Filters.command), get_single_song)
+    dispatcher.add_handler(song_handler)
 
-def main(playlist_link):
-    seen_song_name = set()
-    filtered_list = []
-
-    # Authentication - without user
-    client_credentials_manager = SpotifyClientCredentials(client_id=os.getenv('CLIENT_ID'),
-                                                          client_secret=os.getenv('CLIENT_SECRET'))
-    sp = spotipy.Spotify(client_credentials_manager=client_credentials_manager)
-
-    playlist_uri = playlist_link.split("/")[-1].split("?")[0]
-    playlist = sp.playlist(playlist_uri)
-    playlist_name = playlist['name']
-
-    for item in playlist["tracks"]["items"]:
-        song_name = item["track"]["name"]
-        artist = item["track"]["artists"][0]["name"]
-        if song_name not in seen_song_name:
-            seen_song_name.add(song_name)
-            filtered_list.append({
-                "song_name": song_name,
-                "artist": artist,
-                "playlist_name": playlist_name
-            })
-
-    start_time = time.time()  # Record start time
-
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        futures = [executor.submit(search_and_download, song) for song in filtered_list]
-
-    # Wait for all tasks to complete
-    concurrent.futures.wait(futures)
-
-    end_time = time.time()  # Record end time
-    execution_time = end_time - start_time
-    print(f"Execution time: {execution_time:.2f}")
-
+    # Start the bot
+    updater.start_polling(poll_interval=0.3)
+    logger.info('Bot started')
+    updater.idle()
 
 if __name__ == "__main__":
-    link = ""
-    main(link)
+    main()
