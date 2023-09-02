@@ -1,12 +1,13 @@
-import logging
 import os
-import time
 import subprocess
-import threading  # Import the threading module
-os.system(f'spotdl --download-ffmpeg')
+import logging
+import time
+import threading
+import streamlit as st
 from dotenv import dotenv_values
 from telegram import Update
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
+os.system(f'spotdl --download-ffmpeg')
 
 # Update yt-dlp
 try:
@@ -15,8 +16,11 @@ try:
 except subprocess.CalledProcessError as e:
     logging.error(f'Failed to update yt-dlp: {e}')
 
-# Rest of your code remains the same
+# Initialize the Streamlit app
+st.title("Streamlit App")
+st.write("Your Streamlit app content here")
 
+# Initialize the Telegram bot
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -34,9 +38,9 @@ class Config:
                 logger.error("Telegram token not found. Make sure to set TELEGRAM_TOKEN environment variable.")
                 raise ValueError("Telegram token not found.")
         self.token = token
-        self.auth_enabled = False
-        self.auth_password = "c51A"
-        self.auth_users = []
+        self.auth_enabled = False  # Change to True if authentication is required
+        self.auth_password = "c51A"  # Set the desired authentication password
+        self.auth_users = []  # List of authorized user chat IDs
 
 config = Config()
 
@@ -81,7 +85,7 @@ def get_single_song(update: Update, context: CallbackContext):
                     with open(file, 'rb') as audio_file:
                         context.bot.send_audio(chat_id=chat_id, audio=audio_file, timeout=18000)
                     sent += 1
-                    time.sleep(0.3)
+                    time.sleep(0.3)  # Add a delay of 0.3 seconds between sending each audio file
                 except Exception as e:
                     logger.error(f"Error sending audio: {e}")
             logger.info(f'Sent {sent} audio file(s) to user.')
@@ -95,6 +99,7 @@ def get_single_song(update: Update, context: CallbackContext):
     os.chdir('..')
     os.system(f'rm -rf {download_dir}')
 
+# Create and start the Telegram bot in a separate thread
 def run_telegram_bot():
     updater = Updater(token=config.token, use_context=True)
     dispatcher = updater.dispatcher
@@ -105,19 +110,9 @@ def run_telegram_bot():
     song_handler = MessageHandler(Filters.text & (~Filters.command), get_single_song)
     dispatcher.add_handler(song_handler)
 
-    updater.start_polling(poll_interval=0.3)
-    logger.info('Bot started')
+    updater.start_polling()
     updater.idle()
 
-if __name__ == "__main__":
-    # Start the Telegram bot in a separate thread
-    bot_thread = threading.Thread(target=run_telegram_bot)
-    bot_thread.daemon = True
-    bot_thread.start()
-
-    # Your Streamlit code can run here
-    # ...
-
-    # Keep the main thread alive
-    while True:
-        time.sleep(1)
+telegram_bot_thread = threading.Thread(target=run_telegram_bot)
+telegram_bot_thread.daemon = True  # This ensures the thread is terminated when the main script exits
+telegram_bot_thread.start()
