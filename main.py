@@ -110,5 +110,5 @@ def main():
     logger.info('Bot started')
     updater.idle()
 
-if __name__ == "__main__":
-    main()
+# Call the main function directly without if __name__ == "__main__":
+main()
