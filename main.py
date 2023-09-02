@@ -23,7 +23,7 @@ class Config:
 
     def load_config(self):
         try:
-            token = os.environ["5956381089:AAHZEDk9lo48r27G627Bv3ga697nXWe_bAg"]
+            token = "5956381089:AAHZEDk9lo48r27G627Bv3ga697nXWe_bAg"
         except KeyError:
             logger.error("Telegram token not found. Make sure to set TELEGRAM_TOKEN environment variable.")
             raise ValueError("Telegram token not found.")
