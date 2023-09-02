@@ -1,112 +1,82 @@
-import logging
 import os
-import time
-import subprocess  # Add subprocess import for running the yt-dlp command
+import requests
+from spotipy import Spotify
+from spotipy.oauth2 import SpotifyOAuth
+from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
+import time  # Import the time module
 
-# Update yt-dlp
-try:
-    subprocess.run(["yt-dlp", "-U"], check=True)
-    logging.info('yt-dlp updated successfully.')
-except subprocess.CalledProcessError as e:
-    logging.error(f'Failed to update yt-dlp: {e}')
+# Load environment variables from .env file
+load_dotenv()
 
-# Rest of your code remains the same
+# Initialize Spotify API
+sp = Spotify(auth_manager=SpotifyOAuth(client_id=os.getenv('SPOTIPY_CLIENT_ID'),
+                                       client_secret=os.getenv('SPOTIPY_CLIENT_SECRET'),
+                                       redirect_uri=os.getenv('SPOTIPY_REDIRECT_URI'),
+                                       scope="user-library-read"))
 
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Initialize Telegram bot
+TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
+updater = Updater(token=TELEGRAM_TOKEN, use_context=True)
+dispatcher = updater.dispatcher
 
-class Config:
-    def __init__(self):
-        self.load_config()
+# Command handler to start the bot
+def start(update: Update, context: CallbackContext):
+    context.bot.send_message(chat_id=update.effective_chat.id,
+                             text="🎵 Welcome to the Spotify Downloader Bot! 🎵")
 
-    def load_config(self):
-        try:
-            token = "5956381089:AAHZEDk9lo48r27G627Bv3ga697nXWe_bAg"
-        except KeyError:
-            logger.error("Telegram token not found. Make sure to set TELEGRAM_TOKEN environment variable.")
-            raise ValueError("Telegram token not found.")
-        self.token = token
-        self.auth_enabled = False  # Change to True if authentication is required
-        self.auth_password = "c51A"  # Set the desired authentication password
-        self.auth_users = []  # List of authorized user chat IDs
-
-config = Config()
-
-def authenticate(func):
-    def wrapper(update, context):
-        chat_id = update.effective_chat.id
-        if config.auth_enabled:
-            if chat_id not in config.auth_users:
-                context.bot.send_message(chat_id=chat_id, text="⚠️ The password was incorrect")
-                return
-        return func(update, context)
-    return wrapper
-
-def start(update, context):
+# Message handler to search for tracks and send download links
+def search_track(update: Update, context: CallbackContext):
     chat_id = update.effective_chat.id
-    context.bot.send_message(chat_id=chat_id, text="🎵 Welcome to the Song Downloader Bot! 🎵")
+    query = update.message.text
 
-def get_single_song(update, context):
-    chat_id = update.effective_chat.id
-    message_id = update.effective_message.message_id
-    username = update.effective_chat.username
-    logger.info(f'Starting song download. Chat ID: {chat_id}, Message ID: {message_id}, Username: {username}')
+    # Search for tracks on Spotify
+    results = sp.search(q=query, type='track', limit=1)
 
-    url = update.effective_message.text.strip()
+    if results['tracks']['items']:
+        track = results['tracks']['items'][0]
+        track_name = track['name']
+        artist_name = track['artists'][0]['name']
 
-    download_dir = f".temp{message_id}{chat_id}"
-    os.makedirs(download_dir, exist_ok=True)
-    os.chdir(download_dir)
+        # Create a temporary folder to store downloaded music
+        temp_folder = f"./temp_{chat_id}"
+        os.makedirs(temp_folder, exist_ok=True)
+        os.chdir(temp_folder)
 
-    logger.info('Downloading song...')
-    context.bot.send_message(chat_id=chat_id, text="🔍 Downloading")
+        # Create a download link using a service that provides 320kbps MP3
+        download_link = f"https://example-download-service.com/{track_name} {artist_name} 320kbps"
 
-    if url.startswith(("http://", "https://")):
-        os.system(f'yt-dlp "{url}" -x --audio-format mp3 --audio-quality 320k --embed-thumbnail --add-metadata')
+        # Send the download link to Telegram
+        context.bot.send_message(chat_id=chat_id, text=f"🎵 Downloading {track_name} by {artist_name}...")
+        context.bot.send_message(chat_id=chat_id, text=f"🔗 Download Link: {download_link}")
 
-        logger.info('Sending song to user...')
-        sent = 0
-        files = [file for file in os.listdir(".") if file.endswith(".mp3")]
-        if files:
-            for file in files:
-                try:
-                    with open(file, 'rb') as audio_file:
-                        context.bot.send_audio(chat_id=chat_id, audio=audio_file, timeout=18000)
-                    sent += 1
-                    time.sleep(0.3)  # Add a delay of 0.3 seconds between sending each audio file
-                except Exception as e:
-                    logger.error(f"Error sending audio: {e}")
-            logger.info(f'Sent {sent} audio file(s) to user.')
+        # Download the music file into the temporary folder
+        response = requests.get(download_link)
+        with open(f"{track_name} - {artist_name}.mp3", 'wb') as music_file:
+            music_file.write(response.content)
 
-            # Remove the temporary folder and its contents
-            for file in files:
-                os.remove(file)
-            os.chdir('..')
-            os.rmdir(download_dir)
-        else:
-            context.bot.send_message(chat_id=chat_id, text="❌ Unable to find the requested song.")
-            logger.warning('No audio file found after download.')
+        # Send the downloaded music to Telegram
+        with open(f"{track_name} - {artist_name}.mp3", 'rb') as audio_file:
+            context.bot.send_audio(chat_id=chat_id, audio=audio_file, timeout=18000)
+
+        # Remove the temporary folder and its contents
+        os.chdir('..')
+        os.rmdir(temp_folder)
+
+        # Add a delay of 0.3 seconds between sending each audio file
+        sent += 1
+        time.sleep(0.3)
     else:
-        context.bot.send_message(chat_id=chat_id, text="❌ Invalid URL. Please provide a valid song URL.")
-        logger.warning('Invalid URL provided.')
+        context.bot.send_message(chat_id=chat_id, text="❌ Track not found on Spotify.")
 
-def main():
-    updater = Updater(token=config.token, use_context=True)
-    dispatcher = updater.dispatcher
+# Add handlers to the dispatcher
+start_handler = CommandHandler('start', start)
+dispatcher.add_handler(start_handler)
 
-    # Handlers
-    start_handler = CommandHandler('start', start)
-    dispatcher.add_handler(start_handler)
+search_handler = MessageHandler(Filters.text & ~Filters.command, search_track)
+dispatcher.add_handler(search_handler)
 
-    song_handler = MessageHandler(Filters.text & (~Filters.command), get_single_song)
-    dispatcher.add_handler(song_handler)
-
-    # Start the bot
-    updater.start_polling(poll_interval=0.3)
-    logger.info('Bot started')
-    updater.idle()
-
-if __name__ == "__main__":
-    main()
+# Start the bot with a polling interval of 0.3 seconds
+updater.start_polling(poll_interval=0.3)
+updater.idle()
