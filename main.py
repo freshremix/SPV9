@@ -34,7 +34,7 @@ class Config:
                 raise ValueError("Telegram token not found.")
         self.token = token
         self.auth_enabled = False  # Change to True if authentication is required
-        self.auth_password = "your_password"  # Set the desired authentication password
+        self.auth_password = "c51A"  # Set the desired authentication password
         self.auth_users = []  # List of authorized user chat IDs
 
 config = Config()
@@ -69,7 +69,7 @@ def get_single_song(update: Update, context: CallbackContext):
     context.bot.send_message(chat_id=chat_id, text="🔍 Downloading")
 
     if url.startswith(("http://", "https://")):
-        os.system(f'spotdl download "{url}" --audio slider-kz --threads 12 --format mp3 --bitrate 320k --lyrics genius')
+        os.system(f'spotdl download "{url}" --audio youtube-music --threads 12 --format mp3 --bitrate 320k --lyrics genius')
 
         logger.info('Sending song to user...')
         sent = 0
