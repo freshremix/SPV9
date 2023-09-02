@@ -105,9 +105,11 @@ def main():
     song_handler = MessageHandler(Filters.text & (~Filters.command), get_single_song)
     dispatcher.add_handler(song_handler)
 
-    # Start the bot
+    # Start the bot using polling
     updater.start_polling(poll_interval=0.3)
     logger.info('Bot started')
+
+    # Run the bot until interrupted
     updater.idle()
 
 # Call the main function directly without if __name__ == "__main__":
