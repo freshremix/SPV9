@@ -64,7 +64,7 @@ def get_single_song(update, context):
     context.bot.send_message(chat_id=chat_id, text="🔍 Downloading")
 
     if url.startswith(("http://", "https://")):
-        os.system(f'yt-dlp "{url}" -x --audio-format mp3 --audio-quality 320k --embed-thumbnail --add-metadata --audio-source spotify')
+        os.system(f'yt-dlp "{url}" -x --audio-format mp3 --audio-quality 320k --embed-thumbnail --add-metadata')
 
         logger.info('Sending song to user...')
         sent = 0
