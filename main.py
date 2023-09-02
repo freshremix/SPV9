@@ -2,9 +2,17 @@ import logging
 import os
 import time
 os.system(f'spotdl --download-ffmpeg')
+import subprocess  # Add subprocess import for running the yt-dlp command
 from dotenv import dotenv_values
 from telegram import Update
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
+
+# Update yt-dlp
+try:
+    subprocess.run(["yt-dlp", "-U"], check=True)
+    logging.info('yt-dlp updated successfully.')
+except subprocess.CalledProcessError as e:
+    logging.error(f'Failed to update yt-dlp: {e}')
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
