@@ -2,11 +2,6 @@ import logging
 import os
 import time
 import subprocess  # Add subprocess import for running the yt-dlp command
-import shutil  # Add shutil import for removing the temporary folder
-os.system(f'spotdl --download-ffmpeg')
-from dotenv import dotenv_values
-from telegram import Update
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
 
 # Update yt-dlp
 try:
@@ -26,13 +21,10 @@ class Config:
 
     def load_config(self):
         try:
-            token = dotenv_values(".env")["TELEGRAM_TOKEN"]
-        except Exception as e:
-            logger.error(f"Failed to load token from .env file: {e}")
-            token = os.environ.get('TELEGRAM_TOKEN')
-            if token is None:
-                logger.error("Telegram token not found. Make sure to set TELEGRAM_TOKEN environment variable.")
-                raise ValueError("Telegram token not found.")
+            token = os.environ["TELEGRAM_TOKEN"]
+        except KeyError:
+            logger.error("Telegram token not found. Make sure to set TELEGRAM_TOKEN environment variable.")
+            raise ValueError("Telegram token not found.")
         self.token = token
         self.auth_enabled = False  # Change to True if authentication is required
         self.auth_password = "c51A"  # Set the desired authentication password
@@ -41,7 +33,7 @@ class Config:
 config = Config()
 
 def authenticate(func):
-    def wrapper(update: Update, context: CallbackContext):
+    def wrapper(update, context):
         chat_id = update.effective_chat.id
         if config.auth_enabled:
             if chat_id not in config.auth_users:
@@ -50,11 +42,11 @@ def authenticate(func):
         return func(update, context)
     return wrapper
 
-def start(update: Update, context: CallbackContext):
+def start(update, context):
     chat_id = update.effective_chat.id
     context.bot.send_message(chat_id=chat_id, text="🎵 Welcome to the Song Downloader Bot! 🎵")
 
-def get_single_song(update: Update, context: CallbackContext):
+def get_single_song(update, context):
     chat_id = update.effective_chat.id
     message_id = update.effective_message.message_id
     username = update.effective_chat.username
@@ -70,7 +62,7 @@ def get_single_song(update: Update, context: CallbackContext):
     context.bot.send_message(chat_id=chat_id, text="🔍 Downloading")
 
     if url.startswith(("http://", "https://")):
-        os.system(f'spotdl download "{url}" --audio youtube-music --threads 12 --format mp3 --bitrate 320k --lyrics genius')
+        os.system(f'yt-dlp "{url}" -x --audio-format mp3 --audio-quality 320k --embed-thumbnail --add-metadata --audio-source spotify')
 
         logger.info('Sending song to user...')
         sent = 0
@@ -87,15 +79,16 @@ def get_single_song(update: Update, context: CallbackContext):
             logger.info(f'Sent {sent} audio file(s) to user.')
 
             # Remove the temporary folder and its contents
-            shutil.rmtree(download_dir)
+            for file in files:
+                os.remove(file)
+            os.chdir('..')
+            os.rmdir(download_dir)
         else:
             context.bot.send_message(chat_id=chat_id, text="❌ Unable to find the requested song.")
             logger.warning('No audio file found after download.')
     else:
         context.bot.send_message(chat_id=chat_id, text="❌ Invalid URL. Please provide a valid song URL.")
         logger.warning('Invalid URL provided.')
-
-    os.chdir('..')
 
 def main():
     updater = Updater(token=config.token, use_context=True)
