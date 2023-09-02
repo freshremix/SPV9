@@ -1,12 +1,11 @@
 import logging
 import os
 import time
-import subprocess
+os.system(f'spotdl --download-ffmpeg')
 from dotenv import dotenv_values
 from telegram import Update
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
 
-# Set up logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -25,7 +24,7 @@ class Config:
                 raise ValueError("Telegram token not found.")
         self.token = token
         self.auth_enabled = False  # Change to True if authentication is required
-        self.auth_password = "68i"  # Set the desired authentication password
+        self.auth_password = "your_password"  # Set the desired authentication password
         self.auth_users = []  # List of authorized user chat IDs
 
 config = Config()
@@ -60,7 +59,7 @@ def get_single_song(update: Update, context: CallbackContext):
     context.bot.send_message(chat_id=chat_id, text="🔍 Downloading")
 
     if url.startswith(("http://", "https://")):
-        os.system(f'spotdl download "{url}" --threads 18 --format mp3 --bitrate 320k --lyrics genius')
+        os.system(f'spotdl download "{url}" --threads 12 --format mp3 --bitrate 320k --lyrics genius')
 
         logger.info('Sending song to user...')
         sent = 0
@@ -71,7 +70,7 @@ def get_single_song(update: Update, context: CallbackContext):
                     with open(file, 'rb') as audio_file:
                         context.bot.send_audio(chat_id=chat_id, audio=audio_file, timeout=18000)
                     sent += 1
-                    time.sleep(0.3)  # Add a delay of 0.3 seconds between sending each audio file
+                    time.sleep(0.3)  # Add a delay of 0.3 second between sending each audio file
                 except Exception as e:
                     logger.error(f"Error sending audio: {e}")
             logger.info(f'Sent {sent} audio file(s) to user.')
@@ -85,34 +84,7 @@ def get_single_song(update: Update, context: CallbackContext):
     os.chdir('..')
     os.system(f'rm -rf {download_dir}')
 
-def install_cloudflared():
-    try:
-        # Check if cloudflared is already installed
-        subprocess.run(["cloudflared", "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
-    except subprocess.CalledProcessError as e:
-        logger.info("Installing Cloudflare Warp VPN...")
-        try:
-            subprocess.run(["curl", "-LO", "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64", "--output", "cloudflared"], check=True)
-            subprocess.run(["chmod", "+x", "cloudflared"], check=True)
-            subprocess.run(["sudo", "mv", "cloudflared", "/usr/local/bin/"], check=True)
-        except subprocess.CalledProcessError as e:
-            logger.error(f"Error installing Cloudflare Warp VPN: {e}")
-            return False
-        logger.info("Cloudflare Warp VPN installed successfully.")
-    return True
-
 def main():
-    # Install Cloudflare Warp VPN
-    if not install_cloudflared():
-        logger.error("Failed to install Cloudflare Warp VPN. Exiting.")
-        return
-
-    # Start the Cloudflare Warp VPN connection
-    try:
-        subprocess.run(["cloudflared", "warp", "--background"], check=True)
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Error starting Cloudflare Warp VPN: {e}")
-
     updater = Updater(token=config.token, use_context=True)
     dispatcher = updater.dispatcher
 
