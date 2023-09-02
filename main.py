@@ -25,7 +25,7 @@ class Config:
                 raise ValueError("Telegram token not found.")
         self.token = token
         self.auth_enabled = False  # Change to True if authentication is required
-        self.auth_password = "68i"  # Set the desired authentication password
+        self.auth_password = "your_password"  # Set the desired authentication password
         self.auth_users = []  # List of authorized user chat IDs
 
 config = Config()
@@ -85,7 +85,30 @@ def get_single_song(update: Update, context: CallbackContext):
     os.chdir('..')
     os.system(f'rm -rf {download_dir}')
 
+def install_cloudflared():
+    try:
+        # Check if cloudflared is already installed
+        subprocess.run(["cloudflared", "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+    except subprocess.CalledProcessError as e:
+        logger.info("Installing Cloudflare Warp VPN...")
+        try:
+            subprocess.run(["curl", "-L", "https://bin.equinox.io/c/VdrWdbjqyF/cloudflared-stable-linux-amd64.tgz", "-o", "cloudflared.tgz"], check=True)
+            subprocess.run(["tar", "-xvzf", "cloudflared.tgz"], check=True)
+            subprocess.run(["chmod", "+x", "cloudflared"], check=True)
+            subprocess.run(["sudo", "mv", "cloudflared", "/usr/local/bin/"], check=True)
+            subprocess.run(["rm", "cloudflared.tgz"], check=True)
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Error installing Cloudflare Warp VPN: {e}")
+            return False
+        logger.info("Cloudflare Warp VPN installed successfully.")
+    return True
+
 def main():
+    # Install Cloudflare Warp VPN
+    if not install_cloudflared():
+        logger.error("Failed to install Cloudflare Warp VPN. Exiting.")
+        return
+
     # Start the Cloudflare Warp VPN connection
     try:
         subprocess.run(["cloudflared", "warp", "--background"], check=True)
