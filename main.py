@@ -1,7 +1,6 @@
 import os
 import requests
 from spotipy import Spotify
-from spotipy.oauth2 import SpotifyOAuth
 from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
@@ -10,11 +9,9 @@ import time  # Import the time module
 # Load environment variables from .env file
 load_dotenv()
 
-# Initialize Spotify API
-sp = Spotify(auth_manager=SpotifyOAuth(client_id=os.getenv('SPOTIPY_CLIENT_ID'),
-                                       client_secret=os.getenv('SPOTIPY_CLIENT_SECRET'),
-                                       redirect_uri=os.getenv('SPOTIPY_REDIRECT_URI'),
-                                       scope="user-library-read"))
+# Initialize Spotify API with Client Credentials Flow
+sp = Spotify(auth_manager=SpotifyClientCredentials(client_id=os.getenv('SPOTIPY_CLIENT_ID'),
+                                                    client_secret=os.getenv('SPOTIPY_CLIENT_SECRET')))
 
 # Initialize Telegram bot
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
