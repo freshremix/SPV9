@@ -1,11 +1,12 @@
 import logging
 import os
 import time
-os.system(f'spotdl --download-ffmpeg')
+import subprocess
 from dotenv import dotenv_values
 from telegram import Update
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
 
+# Set up logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -70,7 +71,7 @@ def get_single_song(update: Update, context: CallbackContext):
                     with open(file, 'rb') as audio_file:
                         context.bot.send_audio(chat_id=chat_id, audio=audio_file, timeout=18000)
                     sent += 1
-                    time.sleep(0.3)  # Add a delay of 0.3 second between sending each audio file
+                    time.sleep(0.3)  # Add a delay of 0.3 seconds between sending each audio file
                 except Exception as e:
                     logger.error(f"Error sending audio: {e}")
             logger.info(f'Sent {sent} audio file(s) to user.')
@@ -85,6 +86,12 @@ def get_single_song(update: Update, context: CallbackContext):
     os.system(f'rm -rf {download_dir}')
 
 def main():
+    # Start the Cloudflare Warp VPN connection
+    try:
+        subprocess.run(["cloudflared", "warp", "--background"], check=True)
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Error starting Cloudflare Warp VPN: {e}")
+
     updater = Updater(token=config.token, use_context=True)
     dispatcher = updater.dispatcher
 
