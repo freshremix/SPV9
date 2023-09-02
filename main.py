@@ -1,6 +1,7 @@
 import os
 import requests
 from spotipy import Spotify
+from spotipy.oauth2 import SpotifyClientCredentials  # Import SpotifyClientCredentials
 from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
